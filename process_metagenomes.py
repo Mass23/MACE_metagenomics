@@ -37,6 +37,7 @@ def Main():
   # Parse argument, create results folder:
   args = parser.parse_args()
   out_folder = f'{args.name}_results'
+  os.makedirs(out_folder)
 
   # Initiate the log file
   with open(f'{results_folder_name}/log.txt', 'w') as log:
@@ -49,6 +50,7 @@ def Main():
 
   ################################################################################
   # 1. READS TRIMMING
+  os.makedirs(f'{out_folder}/trimmed_reads')
   short_reads_samples = ListReadsSamples(args.illumina_folder)
   ProcessTrimGalore(out_folder, short_reads_samples)
 
@@ -59,6 +61,7 @@ def Main():
 
   ################################################################################
   # 2. ASSEMBLIES (one co-assembly, several smaller co-assemblies, individual assemblies)
+  os.makedirs(f'{out_folder}/assemblies')
   metadata = LoadMetadata(args.metadata_file)
   samples_to_process = EvaluateSamples(short_reads_samples, long_reads_samples, metadata)
 
@@ -71,9 +74,12 @@ def Main():
 
   ################################################################################
   # 3. Abundance and Functional annotation
+  os.makedirs(f'{out_folder}/metagenome')
 
   ################################################################################
   # 4. MAGs recovery
+  os.makedirs(f'{out_folder}/mags')
+
 
 
 
