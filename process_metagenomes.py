@@ -63,11 +63,11 @@ def Main():
   samples_to_process = EvaluateSamples(short_reads_samples, long_reads_samples, metadata)
 
   if 'co' in args.type:
-    ProcessCoAssembly(out_folder, samples_to_process['coassembly'])
+    ProcessAssembly(out_folder, samples_to_process['coassembly'])
   if 'sub' in args.type:
-    ProcessCoAssembly(out_folder, samples_to_process['subcoassemblies'])
+    ProcessAssembly(out_folder, samples_to_process['subcoassemblies'])
   if 'single' in args.type:
-    ProcessCoAssembly(out_folder, samples_to_process['singleassemblies'])
+    ProcessAssembly(out_folder, samples_to_process['singleassemblies'])
 
   ################################################################################
   # 3. Abundance and Functional annotation
