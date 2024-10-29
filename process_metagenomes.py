@@ -29,8 +29,9 @@ def ListReadsSamples(folder):
     print(f"An error occurred: {e}")
     return([])
 
+# short reads part
 def RunTrimGalore(out_folder, reads_forward, reads_reverse, cpus);
-  args = f'trim_galore --fastqc --paired -j {str(cpus)} -o {os.path.join(out_folder, 'trimmed_reads')} {reads_forward} {reads_reverse}'
+  args = f'trim_galore --fastqc --paired -j {str(cpus)} -o {os.path.join(out_folder, 'trimmed_reads', 'short_reads')} {reads_forward} {reads_reverse}'
   subprocess.call(args, shell = True)
   
   with open(f'{out_folder}/log.txt', 'a') as log:
@@ -41,6 +42,7 @@ def ProcessTrimGalore(out_folder, short_reads_samples, cpus):
     reads_reverse = reads_forward.replace('R1_001.fastq.gz', 'R2_001.fastq.gz')
     RunTrimGalore(out_folder, reads_forward, reads_reverse, cpus)
 
+# long reads part
 def RunPorechop(out_folder, reads_in, reads_out, cpus):
   args = f'porechop --threads {str(cpus)} -i {reads_in} -o {reads_out}'
   subprocess.call(args, shell = True)
@@ -51,7 +53,7 @@ def RunPorechop(out_folder, reads_in, reads_out, cpus):
 def RunChopper(out_folder, reads_in, reads_out, cpus):
   args = f'gunzip -c {reads_in} | chopper -q {str(12)} --threads {str(cpus)} | gzip > {reads_out}'
   subprocess.call(args, shell = True)
-
+    
   with open(f'{out_folder}/log.txt', 'a') as log:
     log.write(args + '\n\n')
     
@@ -64,31 +66,53 @@ def ProcessPorechopChopper(out_folder, long_reads_samples, cpus):
     
 ################################################################################
 # 2. ASSEMBLIES (one co-assembly, several smaller co-assemblies, individual assemblies)
-def LoadMetadata():
+def LoadMetadata(metadata_file):
+  extension = os.path.splitext(metadata_file)[-1]
+  if extension == '.tsv':
+    metadata = pd.read_csv(metadata_path, sep='\t', header=0)
+  elif extension == '.csv':
+    metadata = pd.read_csv(metadata_path, sep=',', header=0)
+  else:
+    print('Only tsv or csv files are accepted!!!')
+  return(metadata)
 
-def EvaluateSamples(type, metadata):
-  if type == 'co':
+def EvaluateSamples(out_folder, is_hybrid, type, metadata):
+  short_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'short_reads', '*val_1.fq.gz'))
+  samples_in_short_reads = [sample.split('/')[-1].split('R1_001')[0] for sample in short_reads]
+  samples_in_metadata = metadata['Sample'].tolist()
+  samples_in_both = set(samples_in_short_reads) & set(samples_in_metadata)
+
+  if is_hybrid:
+    long_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'long_reads', '*R1_001*_chopped.fq.gz'))
+    samples_in_long_reads = [sample.split('/')[-1].split('_chopped')[0] for sample in long_reads]
+    samples_in_all = set(samples_in_both) & set(samples_in_long_reads)
+    metadata = metadata[metadata.Sample.isin(samples_in_all)]
+
+  else:
+    metadata = metadata[metadata.Sample.isin(samples_in_both)]
+
+  print(f'Samples kept are: {metadata.Sample.tolist()}')
+   with open(f'{out_folder}/log.txt', 'a') as log:
+    log.write(f'Samples kept are: {metadata.Sample.tolist()}' + '\n\n')
     
+  if type == 'co':
+    groups = metadata.Sample.tolist()
   elif type == 'sub:
-    for samples, i in enumerate(list_of_list_samples):
-      name = f'sub_assembly_{str(i)}'
-      RunMegahit(os.path.join(out_folder, name), samples, cpus)
+    groups = metadata.groupby('Group')['Sample'].apply(list).tolist()
   elif type == 'single:
-    for samples, i in enumerate(list_of_list_samples):
-      name = f'single_assembly_{samples[0]}'
-      RunMegahit(os.path.join(out_folder, name), samples, cpus)
-  trimmed_reads_forward = glob.glob()
+    groups = metadata.groupby('Sample')['Sample'].apply(list).tolist()
+  return(groups)
 
 def RunMegahit(folder_path_name, samples, cpus):
-  forward_list = [f'{sample}_val_1.fq.gz' for sample in samples]
-  reverse_list = [f'{sample}_val_2.fq.gz' for sample in samples]
-  args = f'megahit --presets meta-large --k-min 27 --k-max 127 --k-step 10 --min-contig-len 1000 -t {cpus} -1 {forward_list} -2 {reverse_list} -o {folder_path_name}'
+  forward_list = [f'{sample}_R1_001_val_1.fq.gz' for sample in samples]
+  reverse_list = [f'{sample}_R2_001_val_2.fq.gz' for sample in samples]
+  args = f'megahit --presets meta-large --k-min 27 --k-max 127 --k-step 10 --min-contig-len 1000 -t {cpus} -1 {','.join(forward_list)} -2 {','.join(reverse_list)} -o {folder_path_name}'
   subprocess.call(args, shell = True)
 
 def ProcessAssembly(out_folder, list_of_list_samples, type, cpus):
   if type == 'co':
     name = 'coassembly'
-    RunMegahit(os.path.join(out_folder, name), list_of_list_samples[0], cpus)
+    RunMegahit(os.path.join(out_folder, name), list_of_list_samples, cpus)
   elif type == 'sub:
     for samples, i in enumerate(list_of_list_samples):
       name = f'sub_assembly_{str(i)}'
@@ -138,20 +162,20 @@ def Main():
 
   ################################################################################
   # 1. READS TRIMMING
-  os.makedirs(f'{out_folder}/trimmed_reads')
-  os.makedirs(f'{out_folder}/trimmed_reads/short_reads')
+  os.makedirs(os.path.join(out_folder, 'trimmed_reads'))
+  os.makedirs(os.path.join(out_folder, 'trimmed_reads', 'short_reads'))
   short_reads_samples = ListReadsSamples(args.illumina_folder)
   ProcessTrimGalore(out_folder, short_reads_samples)
 
   long_reads_samples = []
   if is_hybrid:
-    os.makedirs(f'{out_folder}/trimmed_reads/long_reads')
+    os.makedirs(os.path.join(out_folder, 'trimmed_reads', 'long_reads')
     long_reads_samples = ListReadsSamples(args.nanopore_folder)
     ProcessPorechopChopper(out_folder, long_reads_samples)
 
   ################################################################################
   # 2. ASSEMBLIES (one co-assembly, several smaller co-assemblies, individual assemblies)
-  assemblies_folder = f'{out_folder}/assemblies'
+  assemblies_folder = os.path.join(out_folder, 'assemblies')
   os.makedirs(assemblies_folder)
   metadata = LoadMetadata(args.metadata_file)
 
