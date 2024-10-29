@@ -77,13 +77,13 @@ def LoadMetadata(metadata_file):
   return(metadata)
 
 def EvaluateSamples(out_folder, is_hybrid, type, metadata):
-  short_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'short_reads', '*val_1.fq.gz'))
+  short_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'short_reads', '*R1_001_val_1.fq.gz'))
   samples_in_short_reads = [sample.split('/')[-1].split('R1_001')[0] for sample in short_reads]
   samples_in_metadata = metadata['Sample'].tolist()
   samples_in_both = set(samples_in_short_reads) & set(samples_in_metadata)
 
   if is_hybrid:
-    long_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'long_reads', '*R1_001*_chopped.fq.gz'))
+    long_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'long_reads', '*_chopped.fq.gz'))
     samples_in_long_reads = [sample.split('/')[-1].split('_chopped')[0] for sample in long_reads]
     samples_in_all = set(samples_in_both) & set(samples_in_long_reads)
     metadata = metadata[metadata.Sample.isin(samples_in_all)]
