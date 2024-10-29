@@ -78,7 +78,7 @@ def LoadMetadata(metadata_file):
 
 def EvaluateSamples(out_folder, is_hybrid, type, metadata):
   short_reads = glob.glob(os.path.join(out_folder, 'trimmed_reads', 'short_reads', '*R1_001_val_1.fq.gz'))
-  samples_in_short_reads = [sample.split('/')[-1].split('R1_001')[0] for sample in short_reads]
+  samples_in_short_reads = [sample.split('/')[-1].split('_R1_001')[0] for sample in short_reads]
   samples_in_metadata = metadata['Sample'].tolist()
   samples_in_both = set(samples_in_short_reads) & set(samples_in_metadata)
 
